@@ -1,0 +1,195 @@
+char data;
+int ll,rr,dd; //variable initialize ll=left motor speed, rr=right motor initialize, dd= direction of the motor
+int partition(char x){  //obtain the PWM value according to the char value
+    if(x=='A'){
+        return 0;
+    }else if(x=='B'){
+        return 100;
+    }else if(x=='C'){
+        return 150;
+    }else if(x=='D'){
+        return 170;
+    }else if(x=='E'){
+        return 190;
+    }else if(x=='F'){
+        return 200;
+    }else if(x=='G'){
+        return 210;
+    }else if(x=='H'){
+        return 220;
+    }else if(x=='I'){
+        return 230;
+    }else if(x=='J'){
+        return 240;
+    }else if(x=='K'){
+        return 255;
+          
+    }
+}
+                                 
+
+void Motor_Driver(){// signals to motor driver IC
+     if (dd==1){    // go forward
+         PORTB.F0 = 1;
+         PORTB.F1 = 0;
+         PORTB.F4 = 1;
+         PORTB.F5 = 0;
+         PWM1_Set_Duty(ll);  // PWM value for left motor
+         PWM2_Set_Duty(rr);  // PWM value for right motor
+     }else{      // go backward
+         PORTB.F0 = 0;
+         PORTB.F1 = 1;
+         PORTB.F4 = 0;
+         PORTB.F5 = 1;
+         PWM1_Set_Duty(ll);   // PWM value for left motor
+         PWM2_Set_Duty(rr);    // PWM value for right motor
+     }
+}
+void Reciever(){        // get readings from the bluetooth module
+     int t=0;
+     char txt;         //to store read value
+     int i=0;
+
+     
+     while(!UART1_Data_Ready()){   //  until serial port has data available
+        if(t>1000){   // 1s duration wait for data , otherwise motors stop
+           rr=0;
+           ll=0;
+           break;
+        }
+        t=t+1;
+        Delay_ms(1);
+     }
+    txt=UART1_Read();
+     if (txt=='q'){
+
+         while(i<3){
+         t=0;
+            while(!UART1_Data_Ready()){
+               if(t>1000){
+               rr=0;
+               ll=0;
+               break;
+            }
+            t=t+1;
+            Delay_ms(1);
+         }
+            txt=UART1_Read();
+            if (i==0){
+               ll=partition(txt);
+            }else{
+                  if(i==1){
+                      rr=partition(txt);
+                  }else{
+                        if(txt=='1'){
+                           dd=1;
+                        }else{dd=0;} 
+                        }
+                  }
+            i++;
+         }
+         return;
+     }
+}
+void main() {
+  UART1_Init(9600);      //set baudrate 9600
+  PWM1_Init(5000);      // PWM1 Initalized to 5KHz
+  PWM1_Start();
+  PWM2_Init(5000);     // PWM1 Initalized to 5KHz
+  PWM2_Start();
+  TRISC = 0x00;
+  TRISB = 0x00; //motor contoller direction pin
+  while(1){            //unlimited loop
+     Reciever();        // to get readings from bluetooth module
+     Motor_Driver();    // give signals to motor driver
+  }
+}
+
+
+
+
+
+
+
+
+
+7.2 Code for the remote circuit
+
+int joy_readF;    // to store ADC value of forward backward joystick
+int joy_readT;    // to store ADC value of turning given from joystick
+char dd='1';    // direction stored variable, default value '1'
+char output1;    //
+char output2;
+int ll;
+int rr;
+float turn;
+
+void Reader(){
+     joy_readF=ADC_Read(1);     // take reading from first joystick
+     joy_readT=ADC_Read(0);     // take reading from second joystick
+     if (joy_readF>623){      // leave 623-400 range as neutral,if it is more than 623 forward , else backward
+        dd='1';
+        rr=ll= (joy_readF-623);
+        
+     }else if(joy_readF<400) {
+        dd='0';
+        rr=ll= (400-joy_readF);
+     }else{rr=ll=0;}
+     if (joy_readT>623){   // leave 623-400 range as neutral,if it is more than 623 turn left, else turn right
+         turn= (joy_readT-623)/4;     //
+         //rr=rr+turn;
+         ll=ll-turn;              // reduce left motor speed to turn left
+     }else if(joy_readT<400){
+         turn= (400-joy_readT)/4;
+         rr=rr-turn;              // reduce left motor speed to turn right
+         //ll=ll+turn;
+     }
+     if(ll<0){ll=0;}       //to avoid PWM value be minus
+     if(rr<0){rr=0;}
+}
+char partition(double aa){    // giving char values according to the calculated ADC reading
+     if (aa==0){
+        return 'A';
+     }else if (aa<40){
+           return 'B';
+     }else if (aa<80){
+           return 'C';
+     }else if (aa<120){
+           return 'D';
+     }else if (aa<160){
+           return 'E';
+     }else if (aa<200){
+           return 'F';
+     }else if (aa<240){
+           return 'G';
+     }else if (aa<280){
+           return 'H';
+     }else if (aa<320){
+           return 'I';
+     }else if (aa<360){
+            return 'J';
+     }else{ return 'K';}
+}
+void transmiter(){
+    UART1_Write('q');   //sysnchronizing charecter
+    
+    output1= partition(ll);    // take char value of ll
+    Delay_ms(1);
+    output2= partition(rr);     // take char value of rr
+    UART1_Write(output1);        // send ll value
+    Delay_ms(1);
+    UART1_Write(output2);       // send rr value
+    Delay_ms(1);
+    UART1_Write(dd);           // send direction data
+    Delay_ms(30);              // delay the loop from 30 mS
+}
+void main() {
+UART1_Init(9600);   //set baudrate 9600
+     ADCON1 = 0x80;      //ADC initialize
+     TRISA = 0xFF;       //set A pin as input
+while(1){
+ Reader();       // read analog readings from joysticks
+ transmiter();    //transmit the ll,rr,dd values
+}
+}
+
