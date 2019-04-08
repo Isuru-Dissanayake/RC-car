@@ -39,5 +39,5 @@ Following circuit diagram will be very helpful in understanding the code given
 The micro-controller used here is PIC16f877A micro-controller. The whole RC car programm can be divided into two parts.
 - Interfacing the remote controller with PIC
 - L293D interfacing with PIC
-
+The code for the configuration that we have used, is included here
 
